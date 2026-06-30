@@ -1,6 +1,12 @@
-import { useEffect, useRef } from 'react';
-import type { FreehandAnnotation, Point } from '../../types/annotation';
+import { useEffect, useRef, useState } from 'react';
+import type { Point } from '../../types/annotation';
 import { useReviewDispatch, useReviewState } from '../../state/ReviewContext';
+import { createFreehandAnnotation } from '../../utils/annotationFactory';
+
+// A finished stroke awaiting its optional comment before being committed.
+type PendingForm =
+  | { visible: false }
+  | { visible: true; points: Point[]; screenX: number; screenY: number };
 
 // Default freehand stroke thickness (device-independent pixels).
 const STROKE_WIDTH = 4;
@@ -39,6 +45,9 @@ export function CanvasFreehandLayer() {
   // The stroke currently being drawn. Kept in a ref (not React state) so each
   // pointer-move paints directly to the canvas without re-rendering the tree.
   const strokeRef = useRef<Point[] | null>(null);
+
+  // A completed stroke held on-screen while the user fills in its comment.
+  const [form, setForm] = useState<PendingForm>({ visible: false });
 
   // Redraw every committed freehand stroke from saved data. Re-runs whenever the
   // annotation list changes and recomputes pixel positions from percentages on
@@ -93,13 +102,26 @@ export function CanvasFreehandLayer() {
           ctx.lineWidth = annotation.strokeWidth;
           ctx.stroke();
         });
+
+      // Keep the just-finished stroke visible while its comment form is open.
+      if (form.visible && form.points.length >= 2) {
+        ctx.beginPath();
+        ctx.strokeStyle = activeColor;
+        ctx.lineWidth = STROKE_WIDTH;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        const [first, ...rest] = form.points;
+        ctx.moveTo((first.x / 100) * rect.width, (first.y / 100) * rect.height);
+        rest.forEach((p) => ctx.lineTo((p.x / 100) * rect.width, (p.y / 100) * rect.height));
+        ctx.stroke();
+      }
     };
 
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
     return () => window.removeEventListener('resize', resizeCanvas);
-  }, [annotations, selectedAnnotationId]);
+  }, [annotations, selectedAnnotationId, form, activeColor]);
 
   // Select / delete a freehand stroke by hit-testing against its points.
   // A window-level capture listener lets us claim the click only when it lands
@@ -178,6 +200,7 @@ export function CanvasFreehandLayer() {
 
   function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
     if (activeTool !== 'freehand') return;
+    if (form.visible) return; // don't start a new stroke while the form is open
     e.preventDefault();
     // Capture the pointer so we keep receiving move/up even off the canvas.
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -202,33 +225,105 @@ export function CanvasFreehandLayer() {
     // Ignore taps that produced no real line.
     if (stroke.length < 2) return;
 
-    const annotation: FreehandAnnotation = {
-      id: crypto.randomUUID(),
-      type: 'freehand',
+    // Open the comment form near the release point (kept inside the viewport).
+    setForm({
+      visible: true,
       points: stroke,
-      strokeWidth: STROKE_WIDTH,
-      timestamp: currentTime,
-      author,
-      color: activeColor,
-      createdAt: new Date().toISOString(),
-    };
-
-    dispatch({ type: 'ADD_ANNOTATION', payload: annotation });
+      screenX: Math.min(e.clientX + 10, window.innerWidth - 260),
+      screenY: Math.min(e.clientY + 10, window.innerHeight - 150),
+    });
   }
 
   function handlePointerCancel() {
     strokeRef.current = null;
   }
 
+  function handleFormSubmit(comment: string) {
+    if (!form.visible) return;
+    const annotation = createFreehandAnnotation({
+      points: form.points,
+      strokeWidth: STROKE_WIDTH,
+      timestamp: currentTime,
+      author,
+      comment,
+      color: activeColor,
+    });
+    dispatch({ type: 'ADD_ANNOTATION', payload: annotation });
+    setForm({ visible: false });
+  }
+
+  function handleFormCancel() {
+    // Discard the pending stroke; the redraw effect clears it from the canvas.
+    setForm({ visible: false });
+  }
+
   return (
-    <canvas
-      ref={canvasRef}
-      className={activeTool === 'freehand' ? 'canvas-layer enabled' : 'canvas-layer'}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
-      aria-label="Canvas freehand layer"
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        className={activeTool === 'freehand' ? 'canvas-layer enabled' : 'canvas-layer'}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        aria-label="Canvas freehand layer"
+      />
+
+      {form.visible && (
+        <FreehandCommentForm
+          screenX={form.screenX}
+          screenY={form.screenY}
+          onSubmit={handleFormSubmit}
+          onCancel={handleFormCancel}
+        />
+      )}
+    </>
+  );
+}
+
+// Inline comment form for a freehand stroke — mirrors Dev B's SVG input form
+// so the two layers feel identical. Rendered as a fixed overlay.
+type FreehandCommentFormProps = {
+  screenX: number;
+  screenY: number;
+  onSubmit: (comment: string) => void;
+  onCancel: () => void;
+};
+
+function FreehandCommentForm({ screenX, screenY, onSubmit, onCancel }: FreehandCommentFormProps) {
+  const [comment, setComment] = useState('');
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    onSubmit(comment);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') onCancel();
+  }
+
+  return (
+    <form
+      className="annotation-form"
+      style={{ left: screenX, top: screenY }}
+      onSubmit={handleSubmit}
+      onKeyDown={handleKeyDown}
+    >
+      <p className="annotation-form-title">New freehand</p>
+
+      <input
+        className="annotation-form-input"
+        type="text"
+        placeholder="Comment (optional)…"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        autoFocus
+      />
+
+      <div className="annotation-form-actions">
+        <button type="submit" className="annotation-form-submit">Add</button>
+        <button type="button" className="annotation-form-cancel" onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
   );
 }

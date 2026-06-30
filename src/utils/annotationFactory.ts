@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationType, Point } from '../types/annotation';
+import type { Annotation, AnnotationType, FreehandAnnotation, Point } from '../types/annotation';
 
 type CreateAnnotationOptions = {
   type: AnnotationType;
@@ -14,6 +14,30 @@ function baseAnnotation(options: CreateAnnotationOptions) {
   return {
     id: crypto.randomUUID(),
     type: options.type,
+    timestamp: options.timestamp,
+    comment: options.comment?.trim() || undefined,
+    author: options.author,
+    color: options.color ?? defaultColor,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+type CreateFreehandOptions = {
+  points: Point[];
+  strokeWidth: number;
+  timestamp: number;
+  author: string;
+  comment?: string;
+  color?: string;
+};
+
+/** Build a freehand annotation from captured stroke points (Dev C). */
+export function createFreehandAnnotation(options: CreateFreehandOptions): FreehandAnnotation {
+  return {
+    id: crypto.randomUUID(),
+    type: 'freehand',
+    points: options.points,
+    strokeWidth: options.strokeWidth,
     timestamp: options.timestamp,
     comment: options.comment?.trim() || undefined,
     author: options.author,
