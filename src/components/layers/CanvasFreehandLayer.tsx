@@ -6,6 +6,9 @@ import { createFreehandAnnotation } from '../../utils/annotationFactory';
 // Selectable stroke widths offered by the freehand width picker.
 const STROKE_WIDTH_PRESETS = [2, 4, 8];
 
+// Recolour palette for a selected stroke (mirrors the toolbar palette).
+const COLOR_PALETTE = ['#f97316', '#38bdf8', '#22c55e', '#ef4444', '#a855f7', '#fbbf24', '#ffffff'];
+
 // Translate every point of a freehand stroke by (dx, dy) percentage units.
 function translateFreehand(a: FreehandAnnotation, dx: number, dy: number): FreehandAnnotation {
   return {
@@ -104,6 +107,14 @@ export function CanvasFreehandLayer() {
     { active: true; original: FreehandAnnotation; startPct: Point } | { active: false }
   >({ active: false });
 
+  // Set when we claim a freehand select so the trailing click doesn't reach the
+  // SVG layer beneath and clear the selection we just made.
+  const suppressNextClickRef = useRef(false);
+
+  // The selected annotation, if it's one of our freehand strokes.
+  const selectedFreehand =
+    annotations.find((a) => a.id === selectedAnnotationId && a.type === 'freehand') ?? null;
+
   // Redraw every committed freehand stroke from saved data. Re-runs whenever the
   // annotation list changes and recomputes pixel positions from percentages on
   // resize, so strokes stay aligned with the video.
@@ -199,6 +210,9 @@ export function CanvasFreehandLayer() {
     }
 
     function onPointerDown(e: PointerEvent) {
+      // Ignore interactions with the freehand controls panel.
+      if ((e.target as HTMLElement | null)?.closest('[data-freehand-controls]')) return;
+
       const hit = findHitFreehand(e.clientX, e.clientY);
       if (!hit) return; // let SVG annotations underneath handle it
 
@@ -211,10 +225,18 @@ export function CanvasFreehandLayer() {
       }
 
       // select tool: select the stroke and begin a drag-to-move.
+      // Suppress the trailing click so the SVG layer doesn't deselect it.
+      suppressNextClickRef.current = true;
       dispatch({ type: 'SET_SELECTED_ANNOTATION', payload: hit.id });
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
       moveRef.current = { active: true, original: hit, startPct: toPercent(e.clientX, e.clientY, rect) };
+    }
+
+    function onClick(e: MouseEvent) {
+      if (!suppressNextClickRef.current) return;
+      suppressNextClickRef.current = false;
+      e.stopPropagation(); // stop the SVG layer's empty-click deselect
     }
 
     function onPointerMove(e: PointerEvent) {
@@ -239,11 +261,13 @@ export function CanvasFreehandLayer() {
     window.addEventListener('pointermove', onPointerMove, true);
     window.addEventListener('pointerup', onPointerUp, true);
     window.addEventListener('pointercancel', onPointerUp, true);
+    window.addEventListener('click', onClick, true);
     return () => {
       window.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('pointermove', onPointerMove, true);
       window.removeEventListener('pointerup', onPointerUp, true);
       window.removeEventListener('pointercancel', onPointerUp, true);
+      window.removeEventListener('click', onClick, true);
     };
   }, [activeTool, annotations, dispatch]);
 
@@ -358,6 +382,14 @@ export function CanvasFreehandLayer() {
     setForm({ visible: false });
   }
 
+  function recolorSelected(color: string) {
+    if (!selectedFreehand) return;
+    dispatch({
+      type: 'MOVE_ANNOTATION',
+      payload: { ...selectedFreehand, color, updatedAt: new Date().toISOString() },
+    });
+  }
+
   return (
     <>
       <canvas
@@ -370,46 +402,72 @@ export function CanvasFreehandLayer() {
         aria-label="Canvas freehand layer"
       />
 
-      {activeTool === 'freehand' && (
+      {(activeTool === 'freehand' || selectedFreehand) && (
         <div
+          data-freehand-controls
           style={{
             position: 'absolute',
             top: 8,
             left: 8,
             zIndex: 5,
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: 'column',
             gap: 6,
             padding: '6px 8px',
             background: 'rgba(15, 23, 42, 0.85)',
             borderRadius: 8,
           }}
-          role="group"
-          aria-label="Freehand stroke width"
         >
-          {STROKE_WIDTH_PRESETS.map((w) => (
-            <button
-              key={w}
-              type="button"
-              onClick={() => setStrokeWidth(w)}
-              title={`Stroke width ${w}`}
-              aria-label={`Stroke width ${w}`}
-              aria-pressed={strokeWidth === w}
-              style={{
-                width: 28,
-                height: 28,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 6,
-                cursor: 'pointer',
-                background: '#1e293b',
-                border: strokeWidth === w ? '2px solid #fff' : '1px solid #475569',
-              }}
-            >
-              <span style={{ display: 'block', width: 16, height: w, borderRadius: w, background: '#fff' }} />
-            </button>
-          ))}
+          {activeTool === 'freehand' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} role="group" aria-label="Freehand stroke width">
+              {STROKE_WIDTH_PRESETS.map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setStrokeWidth(w)}
+                  title={`Stroke width ${w}`}
+                  aria-label={`Stroke width ${w}`}
+                  aria-pressed={strokeWidth === w}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    background: '#1e293b',
+                    border: strokeWidth === w ? '2px solid #fff' : '1px solid #475569',
+                  }}
+                >
+                  <span style={{ display: 'block', width: 16, height: w, borderRadius: w, background: '#fff' }} />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {selectedFreehand && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} role="group" aria-label="Recolour selected stroke">
+              {COLOR_PALETTE.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => recolorSelected(c)}
+                  title={`Set stroke colour ${c}`}
+                  aria-label={`Set stroke colour ${c}`}
+                  aria-pressed={selectedFreehand.color === c}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    background: c,
+                    border: selectedFreehand.color === c ? '2px solid #fff' : '1px solid #475569',
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
