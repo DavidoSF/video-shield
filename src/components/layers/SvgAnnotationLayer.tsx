@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Annotation, Point } from '../../types/annotation';
 import { useReviewDispatch, useReviewState } from '../../state/ReviewContext';
 
@@ -84,8 +84,43 @@ export function SvgAnnotationLayer() {
   const dispatch = useReviewDispatch();
 
   const [drawState, setDrawState] = useState<DrawState>({ active: false });
-  const [moveState, setMoveState] = useState<MoveState>({ active: false });
+  // Move state lives in a ref so native DOM listeners always read the current
+  // value without stale-closure issues.
+  const moveRef = useRef<MoveState>({ active: false });
+  const [isMoving, setIsMoving] = useState(false);
   const [formState, setFormState] = useState<FormState>({ visible: false });
+
+  // Register window-level native pointer listeners for drag-to-move.
+  // Window-level ensures we never miss pointerup even when the cursor leaves
+  // the SVG, and avoids React's synthetic-event / pointer-capture mismatch.
+  useEffect(() => {
+    function onMove(e: PointerEvent) {
+      const move = moveRef.current;
+      if (!move.active) return;
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const cur = toPercent(e.clientX, e.clientY, rect);
+      dispatch({
+        type: 'MOVE_ANNOTATION',
+        payload: applyDelta(move.original, cur.x - move.startSvg.x, cur.y - move.startSvg.y),
+      });
+    }
+
+    function onUp() {
+      if (!moveRef.current.active) return;
+      moveRef.current = { active: false };
+      setIsMoving(false);
+    }
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [dispatch]);
 
   const isDragTool = activeTool === 'arrow' || activeTool === 'rectangle' || activeTool === 'circle';
   const isActiveSvgTool = isDragTool || activeTool === 'text';
@@ -139,16 +174,13 @@ export function SvgAnnotationLayer() {
 
     if (activeTool !== 'select' || formState.visible) return;
 
-    // Route all subsequent pointer events (move + up) to the SVG element so
-    // the drag keeps working even when the cursor leaves the annotation shape.
-    svgRef.current!.setPointerCapture(e.pointerId);
-
-    setMoveState({
+    moveRef.current = {
       active: true,
       annotationId: annotation.id,
       startSvg: svgPoint(e),
       original: annotation,
-    });
+    };
+    setIsMoving(true);
   }
 
   // ─── drag-to-draw — uses pointer capture so pointerup always fires ────────
@@ -164,27 +196,11 @@ export function SvgAnnotationLayer() {
   }
 
   function handlePointerMove(e: React.PointerEvent<SVGSVGElement>) {
-    // Move an existing annotation
-    if (moveState.active) {
-      const cur = svgPoint(e);
-      const dx = cur.x - moveState.startSvg.x;
-      const dy = cur.y - moveState.startSvg.y;
-      dispatch({ type: 'MOVE_ANNOTATION', payload: applyDelta(moveState.original, dx, dy) });
-      return;
-    }
-    // Update draw preview
     if (!drawState.active) return;
     setDrawState({ ...drawState, current: svgPoint(e) });
   }
 
   function handlePointerUp(e: React.PointerEvent<SVGSVGElement>) {
-    // Finish move
-    if (moveState.active) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-      setMoveState({ active: false });
-      return;
-    }
-
     if (!drawState.active) return;
     e.currentTarget.releasePointerCapture(e.pointerId);
     const end = svgPoint(e);
@@ -278,7 +294,7 @@ export function SvgAnnotationLayer() {
   }
 
   const cursorStyle: React.CSSProperties = {
-    cursor: moveState.active
+    cursor: isMoving
       ? 'grabbing'
       : formState.visible
         ? 'default'
