@@ -287,6 +287,14 @@ h1 {
   filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.95));
 }
 
+.annotation.movable {
+  cursor: grab;
+}
+
+.annotation.movable:active {
+  cursor: grabbing;
+}
+
 .side-panel {
   padding: 16px;
 }

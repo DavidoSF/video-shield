@@ -8,6 +8,11 @@ type DrawState =
   | { active: false }
   | { active: true; start: Point; current: Point };
 
+// Active annotation being repositioned with the select tool.
+type MoveState =
+  | { active: false }
+  | { active: true; annotationId: string; startSvg: Point; original: Annotation };
+
 // Partial geometry collected before the user fills in the comment / label.
 type PartialData =
   | { type: 'arrow'; start: Point; end: Point }
@@ -32,6 +37,44 @@ function colorId(c: string): string {
   return c.replace(/[^a-zA-Z0-9]/g, '_');
 }
 
+/** Translate every coordinate in an annotation by (dx, dy) percentage units. */
+function applyDelta(annotation: Annotation, dx: number, dy: number): Annotation {
+  const ts = new Date().toISOString();
+  switch (annotation.type) {
+    case 'arrow':
+      return {
+        ...annotation,
+        start: { x: annotation.start.x + dx, y: annotation.start.y + dy },
+        end:   { x: annotation.end.x   + dx, y: annotation.end.y   + dy },
+        updatedAt: ts,
+      };
+    case 'rectangle':
+      return {
+        ...annotation,
+        origin: { x: annotation.origin.x + dx, y: annotation.origin.y + dy },
+        updatedAt: ts,
+      };
+    case 'circle':
+      return {
+        ...annotation,
+        center: { x: annotation.center.x + dx, y: annotation.center.y + dy },
+        updatedAt: ts,
+      };
+    case 'text':
+      return {
+        ...annotation,
+        position: { x: annotation.position.x + dx, y: annotation.position.y + dy },
+        updatedAt: ts,
+      };
+    case 'freehand':
+      return {
+        ...annotation,
+        points: annotation.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+        updatedAt: ts,
+      };
+  }
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 
 export function SvgAnnotationLayer() {
@@ -41,6 +84,7 @@ export function SvgAnnotationLayer() {
   const dispatch = useReviewDispatch();
 
   const [drawState, setDrawState] = useState<DrawState>({ active: false });
+  const [moveState, setMoveState] = useState<MoveState>({ active: false });
   const [formState, setFormState] = useState<FormState>({ visible: false });
 
   const isDragTool = activeTool === 'arrow' || activeTool === 'rectangle' || activeTool === 'circle';
@@ -80,15 +124,31 @@ export function SvgAnnotationLayer() {
     });
   }
 
-  // ─── annotation click (select / delete) ──────────────────────────────────
+  // ─── annotation pointer-down: delete click or start drag-to-move ─────────
 
-  function handleAnnotationClick(e: React.MouseEvent, id: string) {
-    e.stopPropagation();
+  function handleAnnotationPointerDown(e: React.PointerEvent, annotation: Annotation) {
+    e.stopPropagation(); // prevent SVG's onPointerDown from also firing
+
     if (activeTool === 'delete') {
-      dispatch({ type: 'DELETE_ANNOTATION', payload: id });
-    } else {
-      dispatch({ type: 'SET_SELECTED_ANNOTATION', payload: id });
+      dispatch({ type: 'DELETE_ANNOTATION', payload: annotation.id });
+      return;
     }
+
+    // Always select on pointer-down so the highlight appears immediately.
+    dispatch({ type: 'SET_SELECTED_ANNOTATION', payload: annotation.id });
+
+    if (activeTool !== 'select' || formState.visible) return;
+
+    // Route all subsequent pointer events (move + up) to the SVG element so
+    // the drag keeps working even when the cursor leaves the annotation shape.
+    svgRef.current!.setPointerCapture(e.pointerId);
+
+    setMoveState({
+      active: true,
+      annotationId: annotation.id,
+      startSvg: svgPoint(e),
+      original: annotation,
+    });
   }
 
   // ─── drag-to-draw — uses pointer capture so pointerup always fires ────────
@@ -104,11 +164,27 @@ export function SvgAnnotationLayer() {
   }
 
   function handlePointerMove(e: React.PointerEvent<SVGSVGElement>) {
+    // Move an existing annotation
+    if (moveState.active) {
+      const cur = svgPoint(e);
+      const dx = cur.x - moveState.startSvg.x;
+      const dy = cur.y - moveState.startSvg.y;
+      dispatch({ type: 'MOVE_ANNOTATION', payload: applyDelta(moveState.original, dx, dy) });
+      return;
+    }
+    // Update draw preview
     if (!drawState.active) return;
     setDrawState({ ...drawState, current: svgPoint(e) });
   }
 
   function handlePointerUp(e: React.PointerEvent<SVGSVGElement>) {
+    // Finish move
+    if (moveState.active) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      setMoveState({ active: false });
+      return;
+    }
+
     if (!drawState.active) return;
     e.currentTarget.releasePointerCapture(e.pointerId);
     const end = svgPoint(e);
@@ -202,7 +278,13 @@ export function SvgAnnotationLayer() {
   }
 
   const cursorStyle: React.CSSProperties = {
-    cursor: formState.visible ? 'default' : isActiveSvgTool || activeTool === 'delete' ? 'crosshair' : 'default',
+    cursor: moveState.active
+      ? 'grabbing'
+      : formState.visible
+        ? 'default'
+        : isActiveSvgTool || activeTool === 'delete'
+          ? 'crosshair'
+          : 'default',
   };
 
   const arrowColors = Array.from(
@@ -235,8 +317,15 @@ export function SvgAnnotationLayer() {
 
         {svgAnnotations.map((annotation) => {
           const isSelected = annotation.id === selectedAnnotationId;
-          const cls = isSelected ? 'annotation selected' : 'annotation';
-          const onClick = (ev: React.MouseEvent) => handleAnnotationClick(ev, annotation.id);
+          // 'movable' adds the grab cursor when the select tool is active
+          const cls = [
+            'annotation',
+            isSelected ? 'selected' : '',
+            activeTool === 'select' ? 'movable' : '',
+          ].filter(Boolean).join(' ');
+
+          const onPD = (ev: React.PointerEvent) =>
+            handleAnnotationPointerDown(ev, annotation);
 
           if (annotation.type === 'arrow') {
             return (
@@ -251,7 +340,7 @@ export function SvgAnnotationLayer() {
                 strokeWidth="1.4"
                 vectorEffect="non-scaling-stroke"
                 markerEnd={`url(#arrowhead-${colorId(annotation.color)})`}
-                onClick={onClick}
+                onPointerDown={onPD}
               />
             );
           }
@@ -269,7 +358,7 @@ export function SvgAnnotationLayer() {
                 stroke={annotation.color}
                 strokeWidth="1.4"
                 vectorEffect="non-scaling-stroke"
-                onClick={onClick}
+                onPointerDown={onPD}
               />
             );
           }
@@ -286,7 +375,7 @@ export function SvgAnnotationLayer() {
                 stroke={annotation.color}
                 strokeWidth="1.4"
                 vectorEffect="non-scaling-stroke"
-                onClick={onClick}
+                onPointerDown={onPD}
               />
             );
           }
@@ -301,7 +390,7 @@ export function SvgAnnotationLayer() {
                 fill={annotation.color}
                 fontSize="4"
                 fontWeight="700"
-                onClick={onClick}
+                onPointerDown={onPD}
               >
                 {annotation.text}
               </text>

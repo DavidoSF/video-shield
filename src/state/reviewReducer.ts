@@ -22,6 +22,7 @@ export type ReviewAction =
   | { type: 'ADD_ANNOTATION'; payload: Annotation }
   | { type: 'UPSERT_REMOTE_ANNOTATION'; payload: Annotation }
   | { type: 'UPDATE_ANNOTATION_COMMENT'; payload: { id: string; comment: string } }
+  | { type: 'MOVE_ANNOTATION'; payload: Annotation }
   | { type: 'DELETE_ANNOTATION'; payload: string }
   | { type: 'SET_CONNECTION_STATUS'; payload: ReviewState['connectionStatus'] };
 
@@ -79,6 +80,14 @@ export function reviewReducer(state: ReviewState, action: ReviewAction): ReviewS
           item.id === action.payload.id
             ? { ...item, comment: action.payload.comment, updatedAt: new Date().toISOString() }
             : item,
+        ),
+      };
+
+    case 'MOVE_ANNOTATION':
+      return {
+        ...state,
+        annotations: state.annotations.map((item) =>
+          item.id === action.payload.id ? action.payload : item,
         ),
       };
 
