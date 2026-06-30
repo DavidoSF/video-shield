@@ -6,9 +6,6 @@ import { createFreehandAnnotation } from '../../utils/annotationFactory';
 // Selectable stroke widths offered by the freehand width picker.
 const STROKE_WIDTH_PRESETS = [2, 4, 8];
 
-// Recolour palette for a selected stroke (mirrors the toolbar palette).
-const COLOR_PALETTE = ['#f97316', '#38bdf8', '#22c55e', '#ef4444', '#a855f7', '#fbbf24', '#ffffff'];
-
 // Translate every point of a freehand stroke by (dx, dy) percentage units.
 function translateFreehand(a: FreehandAnnotation, dx: number, dy: number): FreehandAnnotation {
   return {
@@ -113,7 +110,42 @@ export function CanvasFreehandLayer() {
 
   // The selected annotation, if it's one of our freehand strokes.
   const selectedFreehand =
-    annotations.find((a) => a.id === selectedAnnotationId && a.type === 'freehand') ?? null;
+    (annotations.find((a) => a.id === selectedAnnotationId && a.type === 'freehand') as
+      | FreehandAnnotation
+      | undefined) ?? null;
+
+  // Mirror "is a freehand selected" into a ref so the tool-change effect can read
+  // it without re-running every time the selection changes.
+  const selectedIsFreehandRef = useRef(false);
+
+  // Clear our freehand selection whenever the active tool changes. Scoped to
+  // freehand so we never clear a selection owned by the SVG layer.
+  useEffect(() => {
+    if (selectedIsFreehandRef.current) {
+      dispatch({ type: 'SET_SELECTED_ANNOTATION', payload: null });
+    }
+  }, [activeTool, dispatch]);
+
+  // Recolour the selected stroke from the single toolbar palette: when the
+  // active colour changes while a freehand stroke is selected, apply it.
+  const prevColorRef = useRef(activeColor);
+  useEffect(() => {
+    if (activeColor === prevColorRef.current) return;
+    prevColorRef.current = activeColor;
+    if (selectedFreehand) {
+      dispatch({
+        type: 'MOVE_ANNOTATION',
+        payload: { ...selectedFreehand, color: activeColor, updatedAt: new Date().toISOString() },
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeColor, dispatch]);
+
+  // Keep the ref in sync after every render (declared last so the tool-change
+  // effect above still sees the previous value when the tool switches).
+  useEffect(() => {
+    selectedIsFreehandRef.current = !!selectedFreehand;
+  });
 
   // Redraw every committed freehand stroke from saved data. Re-runs whenever the
   // annotation list changes and recomputes pixel positions from percentages on
@@ -323,6 +355,8 @@ export function CanvasFreehandLayer() {
   function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
     if (activeTool !== 'freehand') return;
     if (form.visible) return; // don't start a new stroke while the form is open
+    // Starting a new stroke clears any existing selection.
+    if (selectedAnnotationId) dispatch({ type: 'SET_SELECTED_ANNOTATION', payload: null });
     e.preventDefault();
     // Capture the pointer so we keep receiving move/up even off the canvas.
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -382,13 +416,18 @@ export function CanvasFreehandLayer() {
     setForm({ visible: false });
   }
 
-  function recolorSelected(color: string) {
+  function resizeSelected(width: number) {
     if (!selectedFreehand) return;
     dispatch({
       type: 'MOVE_ANNOTATION',
-      payload: { ...selectedFreehand, color, updatedAt: new Date().toISOString() },
+      payload: { ...selectedFreehand, strokeWidth: width, updatedAt: new Date().toISOString() },
     });
   }
+
+  // The width row controls the selected stroke when one is selected, otherwise
+  // the pen width for new strokes.
+  const widthValue = selectedFreehand ? selectedFreehand.strokeWidth : strokeWidth;
+  const setWidth = (w: number) => (selectedFreehand ? resizeSelected(w) : setStrokeWidth(w));
 
   return (
     <>
@@ -411,63 +450,38 @@ export function CanvasFreehandLayer() {
             left: 8,
             zIndex: 5,
             display: 'flex',
-            flexDirection: 'column',
+            alignItems: 'center',
             gap: 6,
             padding: '6px 8px',
             background: 'rgba(15, 23, 42, 0.85)',
             borderRadius: 8,
           }}
+          role="group"
+          aria-label={selectedFreehand ? 'Selected stroke width' : 'Freehand stroke width'}
         >
-          {activeTool === 'freehand' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} role="group" aria-label="Freehand stroke width">
-              {STROKE_WIDTH_PRESETS.map((w) => (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => setStrokeWidth(w)}
-                  title={`Stroke width ${w}`}
-                  aria-label={`Stroke width ${w}`}
-                  aria-pressed={strokeWidth === w}
-                  style={{
-                    width: 28,
-                    height: 28,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    background: '#1e293b',
-                    border: strokeWidth === w ? '2px solid #fff' : '1px solid #475569',
-                  }}
-                >
-                  <span style={{ display: 'block', width: 16, height: w, borderRadius: w, background: '#fff' }} />
-                </button>
-              ))}
-            </div>
-          )}
-
-          {selectedFreehand && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} role="group" aria-label="Recolour selected stroke">
-              {COLOR_PALETTE.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => recolorSelected(c)}
-                  title={`Set stroke colour ${c}`}
-                  aria-label={`Set stroke colour ${c}`}
-                  aria-pressed={selectedFreehand.color === c}
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: '50%',
-                    cursor: 'pointer',
-                    background: c,
-                    border: selectedFreehand.color === c ? '2px solid #fff' : '1px solid #475569',
-                  }}
-                />
-              ))}
-            </div>
-          )}
+          {STROKE_WIDTH_PRESETS.map((w) => (
+            <button
+              key={w}
+              type="button"
+              onClick={() => setWidth(w)}
+              title={`Stroke width ${w}`}
+              aria-label={`Stroke width ${w}`}
+              aria-pressed={widthValue === w}
+              style={{
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 6,
+                cursor: 'pointer',
+                background: '#1e293b',
+                border: widthValue === w ? '2px solid #fff' : '1px solid #475569',
+              }}
+            >
+              <span style={{ display: 'block', width: 16, height: w, borderRadius: w, background: '#fff' }} />
+            </button>
+          ))}
         </div>
       )}
 
