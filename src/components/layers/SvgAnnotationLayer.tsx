@@ -126,10 +126,33 @@ export function SvgAnnotationLayer() {
     setDrawState({ active: false });
   }
 
-  // Clicking the SVG background with the select tool deselects everything.
+  // Handles single-click interactions on the SVG background.
   function handleSvgClick(e: React.MouseEvent<SVGSVGElement>) {
-    if (e.target !== e.currentTarget) return;
-    if (activeTool === 'select') {
+    if (activeTool === 'text') {
+      // Text tool: click anywhere (even over annotations) to place a label.
+      const pt = getPoint(e);
+      const text = window.prompt('Enter text label:', 'Review note');
+      if (!text?.trim()) return;
+      const comment = window.prompt('Add a comment (optional):', '') ?? '';
+
+      const annotation: Annotation = {
+        id: crypto.randomUUID(),
+        type: 'text',
+        timestamp: currentTime,
+        author,
+        comment: comment.trim() || undefined,
+        color: activeColor,
+        createdAt: new Date().toISOString(),
+        position: pt,
+        text: text.trim(),
+      };
+
+      dispatch({ type: 'ADD_ANNOTATION', payload: annotation });
+      return;
+    }
+
+    // Background click with select tool → deselect.
+    if (e.target === e.currentTarget && activeTool === 'select') {
       dispatch({ type: 'SET_SELECTED_ANNOTATION', payload: null });
     }
   }
