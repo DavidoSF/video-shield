@@ -90,6 +90,38 @@ h1 {
   background: #38bdf8;
 }
 
+.toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(148, 163, 184, 0.25);
+  border: 0;
+  padding: 0;
+  cursor: default;
+  pointer-events: none;
+}
+
+.color-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--swatch-color, #fff);
+  border: 2px solid transparent;
+  padding: 0;
+  flex-shrink: 0;
+  transition: 0.18s ease;
+}
+
+.color-swatch:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.35);
+}
+
+.color-swatch.active {
+  border-color: #f8fafc;
+  transform: scale(1.2);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.6);
+}
+
 .review-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;

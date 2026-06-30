@@ -6,6 +6,7 @@ export type ReviewState = {
   currentTime: number;
   duration: number;
   activeTool: ToolType;
+  activeColor: string;
   selectedAnnotationId: string | null;
   annotations: Annotation[];
   author: string;
@@ -16,6 +17,7 @@ export type ReviewAction =
   | { type: 'SET_CURRENT_TIME'; payload: number }
   | { type: 'SET_DURATION'; payload: number }
   | { type: 'SET_ACTIVE_TOOL'; payload: ToolType }
+  | { type: 'SET_ACTIVE_COLOR'; payload: string }
   | { type: 'SET_SELECTED_ANNOTATION'; payload: string | null }
   | { type: 'ADD_ANNOTATION'; payload: Annotation }
   | { type: 'UPSERT_REMOTE_ANNOTATION'; payload: Annotation }
@@ -29,9 +31,10 @@ export const initialReviewState: ReviewState = {
   currentTime: 0,
   duration: 0,
   activeTool: 'select',
+  activeColor: '#f97316',
   selectedAnnotationId: null,
   annotations: [],
-  author: 'Developer A',
+  author: 'Developer B',
   connectionStatus: 'offline',
 };
 
@@ -45,6 +48,9 @@ export function reviewReducer(state: ReviewState, action: ReviewAction): ReviewS
 
     case 'SET_ACTIVE_TOOL':
       return { ...state, activeTool: action.payload };
+
+    case 'SET_ACTIVE_COLOR':
+      return { ...state, activeColor: action.payload };
 
     case 'SET_SELECTED_ANNOTATION':
       return { ...state, selectedAnnotationId: action.payload };
