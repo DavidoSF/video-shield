@@ -172,7 +172,7 @@ export function SvgAnnotationLayer() {
     // Always select on pointer-down so the highlight appears immediately.
     dispatch({ type: 'SET_SELECTED_ANNOTATION', payload: annotation.id });
 
-    if (activeTool !== 'select' || formState.visible) return;
+    if (activeTool === 'delete' || formState.visible) return;
 
     moveRef.current = {
       active: true,
@@ -337,11 +337,13 @@ export function SvgAnnotationLayer() {
           const cls = [
             'annotation',
             isSelected ? 'selected' : '',
-            activeTool === 'select' ? 'movable' : '',
+            activeTool !== 'delete' ? 'movable' : '',
           ].filter(Boolean).join(' ');
 
           const onPD = (ev: React.PointerEvent) =>
             handleAnnotationPointerDown(ev, annotation);
+          // Stop clicks on annotations from reaching the SVG's text-tool handler.
+          const onCK = (ev: React.MouseEvent) => ev.stopPropagation();
 
           if (annotation.type === 'arrow') {
             return (
@@ -357,6 +359,7 @@ export function SvgAnnotationLayer() {
                 vectorEffect="non-scaling-stroke"
                 markerEnd={`url(#arrowhead-${colorId(annotation.color)})`}
                 onPointerDown={onPD}
+                onClick={onCK}
               />
             );
           }
@@ -375,6 +378,7 @@ export function SvgAnnotationLayer() {
                 strokeWidth="1.4"
                 vectorEffect="non-scaling-stroke"
                 onPointerDown={onPD}
+                onClick={onCK}
               />
             );
           }
@@ -392,6 +396,7 @@ export function SvgAnnotationLayer() {
                 strokeWidth="1.4"
                 vectorEffect="non-scaling-stroke"
                 onPointerDown={onPD}
+                onClick={onCK}
               />
             );
           }
@@ -407,6 +412,7 @@ export function SvgAnnotationLayer() {
                 fontSize="4"
                 fontWeight="700"
                 onPointerDown={onPD}
+                onClick={onCK}
               >
                 {annotation.text}
               </text>
