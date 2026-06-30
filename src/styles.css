@@ -90,6 +90,115 @@ h1 {
   background: #38bdf8;
 }
 
+/* ── Annotation input form (fixed overlay after each draw action) ── */
+.annotation-form {
+  position: fixed;
+  z-index: 200;
+  padding: 12px;
+  min-width: 230px;
+  background: #1e293b;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.annotation-form-title {
+  margin: 0 0 2px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #38bdf8;
+}
+
+.annotation-form-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: rgba(2, 6, 23, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  color: #e5e7eb;
+  font: inherit;
+  font-size: 0.875rem;
+  box-sizing: border-box;
+}
+
+.annotation-form-input:focus {
+  outline: none;
+  border-color: #38bdf8;
+}
+
+.annotation-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.annotation-form-submit,
+.annotation-form-cancel {
+  flex: 1;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+
+.annotation-form-submit {
+  background: #38bdf8;
+  color: #020617;
+  font-weight: 700;
+}
+
+.annotation-form-submit:hover {
+  background: #7dd3fc;
+}
+
+.annotation-form-cancel {
+  background: rgba(148, 163, 184, 0.14);
+  color: #94a3b8;
+}
+
+.annotation-form-cancel:hover {
+  background: rgba(148, 163, 184, 0.25);
+}
+
+.toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(148, 163, 184, 0.25);
+  border: 0;
+  padding: 0;
+  cursor: default;
+  pointer-events: none;
+}
+
+.color-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--swatch-color, #fff);
+  border: 2px solid transparent;
+  padding: 0;
+  flex-shrink: 0;
+  transition: 0.18s ease;
+}
+
+.color-swatch:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.35);
+}
+
+.color-swatch.active {
+  border-color: #f8fafc;
+  transform: scale(1.2);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.6);
+}
+
 .review-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
@@ -176,6 +285,14 @@ h1 {
 
 .annotation.selected {
   filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.95));
+}
+
+.annotation.movable {
+  cursor: grab;
+}
+
+.annotation.movable:active {
+  cursor: grabbing;
 }
 
 .side-panel {
