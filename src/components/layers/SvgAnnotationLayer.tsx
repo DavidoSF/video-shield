@@ -80,26 +80,47 @@ export function SvgAnnotationLayer() {
     if (!drawState.active) return;
     const end = getPoint(e);
 
-    // Guard: only handle the arrow tool in this phase.
-    // Rectangle and circle are wired up in the next commit.
-    if (activeTool !== 'arrow') {
+    if (activeTool !== 'arrow' && activeTool !== 'rectangle' && activeTool !== 'circle') {
       setDrawState({ active: false });
       return;
     }
 
     const comment = window.prompt('Add a comment (optional):', '') ?? '';
 
-    const annotation: Annotation = {
+    const base = {
       id: crypto.randomUUID(),
-      type: 'arrow',
       timestamp: currentTime,
       author,
       comment: comment.trim() || undefined,
       color: activeColor,
       createdAt: new Date().toISOString(),
-      start: drawState.start,
-      end,
     };
+
+    let annotation: Annotation;
+
+    if (activeTool === 'arrow') {
+      annotation = { ...base, type: 'arrow', start: drawState.start, end };
+    } else if (activeTool === 'rectangle') {
+      const x = Math.min(drawState.start.x, end.x);
+      const y = Math.min(drawState.start.y, end.y);
+      annotation = {
+        ...base,
+        type: 'rectangle',
+        origin: { x, y },
+        width: Math.abs(end.x - drawState.start.x),
+        height: Math.abs(end.y - drawState.start.y),
+      };
+    } else {
+      // circle: start = centre, drag radius from centre to release point
+      const dx = end.x - drawState.start.x;
+      const dy = end.y - drawState.start.y;
+      annotation = {
+        ...base,
+        type: 'circle',
+        center: drawState.start,
+        radius: Math.sqrt(dx * dx + dy * dy),
+      };
+    }
 
     dispatch({ type: 'ADD_ANNOTATION', payload: annotation });
     setDrawState({ active: false });
@@ -115,10 +136,16 @@ export function SvgAnnotationLayer() {
 
   // ─── live drag preview ───────────────────────────────────────────────────────
 
-  const preview =
-    drawState.active && activeTool === 'arrow'
-      ? renderArrowPreview(drawState.start, drawState.current, activeColor)
-      : null;
+  let preview: React.ReactNode = null;
+  if (drawState.active) {
+    if (activeTool === 'arrow') {
+      preview = renderArrowPreview(drawState.start, drawState.current, activeColor);
+    } else if (activeTool === 'rectangle') {
+      preview = renderRectPreview(drawState.start, drawState.current, activeColor);
+    } else if (activeTool === 'circle') {
+      preview = renderCirclePreview(drawState.start, drawState.current, activeColor);
+    }
+  }
 
   // ─── cursor style ────────────────────────────────────────────────────────────
 
@@ -279,6 +306,48 @@ function renderArrowPreview(start: Point, current: Point, color: string) {
       opacity={0.75}
       vectorEffect="non-scaling-stroke"
       markerEnd={`url(#arrowhead-${colorId(color)}-preview)`}
+      pointerEvents="none"
+    />
+  );
+}
+
+function renderRectPreview(start: Point, current: Point, color: string) {
+  const x = Math.min(start.x, current.x);
+  const y = Math.min(start.y, current.y);
+  const w = Math.abs(current.x - start.x);
+  const h = Math.abs(current.y - start.y);
+  return (
+    <rect
+      x={x}
+      y={y}
+      width={w}
+      height={h}
+      fill="transparent"
+      stroke={color}
+      strokeWidth="1.4"
+      strokeDasharray="3 2"
+      opacity={0.75}
+      vectorEffect="non-scaling-stroke"
+      pointerEvents="none"
+    />
+  );
+}
+
+function renderCirclePreview(start: Point, current: Point, color: string) {
+  const dx = current.x - start.x;
+  const dy = current.y - start.y;
+  const r = Math.sqrt(dx * dx + dy * dy);
+  return (
+    <circle
+      cx={start.x}
+      cy={start.y}
+      r={r}
+      fill="transparent"
+      stroke={color}
+      strokeWidth="1.4"
+      strokeDasharray="3 2"
+      opacity={0.75}
+      vectorEffect="non-scaling-stroke"
       pointerEvents="none"
     />
   );
