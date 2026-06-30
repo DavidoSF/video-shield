@@ -1,7 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Point } from '../../types/annotation';
+import type { FreehandAnnotation, Point } from '../../types/annotation';
 import { useReviewDispatch, useReviewState } from '../../state/ReviewContext';
 import { createFreehandAnnotation } from '../../utils/annotationFactory';
+
+// Selectable stroke widths offered by the freehand width picker.
+const STROKE_WIDTH_PRESETS = [2, 4, 8];
+
+// Translate every point of a freehand stroke by (dx, dy) percentage units.
+function translateFreehand(a: FreehandAnnotation, dx: number, dy: number): FreehandAnnotation {
+  return {
+    ...a,
+    points: a.points.map((p) => ({ x: p.x + dx, y: p.y + dy })),
+    updatedAt: new Date().toISOString(),
+  };
+}
 
 // A finished stroke awaiting its optional comment before being committed.
 type PendingForm =
@@ -80,6 +92,18 @@ export function CanvasFreehandLayer() {
   // A completed stroke held on-screen while the user fills in its comment.
   const [form, setForm] = useState<PendingForm>({ visible: false });
 
+  // Active pen thickness, chosen from the freehand width picker.
+  const [strokeWidth, setStrokeWidth] = useState(STROKE_WIDTH);
+
+  // Ids of strokes this client created, newest last — drives Ctrl+Z undo so we
+  // only undo our own work, never another collaborator's stroke.
+  const undoStackRef = useRef<string[]>([]);
+
+  // Drag-to-move state for repositioning a stroke with the select tool.
+  const moveRef = useRef<
+    { active: true; original: FreehandAnnotation; startPct: Point } | { active: false }
+  >({ active: false });
+
   // Redraw every committed freehand stroke from saved data. Re-runs whenever the
   // annotation list changes and recomputes pixel positions from percentages on
   // resize, so strokes stay aligned with the video.
@@ -131,7 +155,7 @@ export function CanvasFreehandLayer() {
         ctx.lineJoin = 'round';
         buildSmoothPath(ctx, form.points, rect);
         ctx.strokeStyle = activeColor;
-        ctx.lineWidth = STROKE_WIDTH;
+        ctx.lineWidth = strokeWidth;
         ctx.stroke();
       }
     };
@@ -140,7 +164,7 @@ export function CanvasFreehandLayer() {
     window.addEventListener('resize', resizeCanvas);
 
     return () => window.removeEventListener('resize', resizeCanvas);
-  }, [annotations, selectedAnnotationId, form, activeColor]);
+  }, [annotations, selectedAnnotationId, form, activeColor, strokeWidth]);
 
   // Select / delete a freehand stroke by hit-testing against its points.
   // A window-level capture listener lets us claim the click only when it lands
@@ -148,7 +172,7 @@ export function CanvasFreehandLayer() {
   useEffect(() => {
     if (activeTool !== 'select' && activeTool !== 'delete') return;
 
-    function findHitFreehand(clientX: number, clientY: number) {
+    function findHitFreehand(clientX: number, clientY: number): FreehandAnnotation | null {
       const canvas = canvasRef.current;
       if (!canvas) return null;
       const rect = canvas.getBoundingClientRect();
@@ -180,17 +204,72 @@ export function CanvasFreehandLayer() {
 
       // Claim the event so the SVG layer doesn't also act on this click.
       e.stopPropagation();
+
       if (activeTool === 'delete') {
         dispatch({ type: 'DELETE_ANNOTATION', payload: hit.id });
-      } else {
-        dispatch({ type: 'SET_SELECTED_ANNOTATION', payload: hit.id });
+        return;
       }
+
+      // select tool: select the stroke and begin a drag-to-move.
+      dispatch({ type: 'SET_SELECTED_ANNOTATION', payload: hit.id });
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      moveRef.current = { active: true, original: hit, startPct: toPercent(e.clientX, e.clientY, rect) };
+    }
+
+    function onPointerMove(e: PointerEvent) {
+      const move = moveRef.current;
+      if (!move.active) return;
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const cur = toPercent(e.clientX, e.clientY, rect);
+      // Always translate from the ORIGINAL stroke by the total delta (drift-free).
+      dispatch({
+        type: 'MOVE_ANNOTATION',
+        payload: translateFreehand(move.original, cur.x - move.startPct.x, cur.y - move.startPct.y),
+      });
+    }
+
+    function onPointerUp() {
+      if (moveRef.current.active) moveRef.current = { active: false };
     }
 
     // Capture phase: runs before React's synthetic handlers on the SVG layer.
     window.addEventListener('pointerdown', onPointerDown, true);
-    return () => window.removeEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('pointermove', onPointerMove, true);
+    window.addEventListener('pointerup', onPointerUp, true);
+    window.addEventListener('pointercancel', onPointerUp, true);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('pointermove', onPointerMove, true);
+      window.removeEventListener('pointerup', onPointerUp, true);
+      window.removeEventListener('pointercancel', onPointerUp, true);
+    };
   }, [activeTool, annotations, dispatch]);
+
+  // Ctrl/Cmd+Z removes the most recent freehand stroke this client created.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.key !== 'z' && e.key !== 'Z') || !(e.ctrlKey || e.metaKey)) return;
+      // Don't hijack undo while typing in the comment form.
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+
+      const stack = undoStackRef.current;
+      // Pop ids until we find one that still exists (skip already-deleted ones).
+      while (stack.length > 0) {
+        const id = stack.pop()!;
+        if (annotations.some((a) => a.id === id)) {
+          e.preventDefault();
+          dispatch({ type: 'DELETE_ANNOTATION', payload: id });
+          break;
+        }
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [annotations, dispatch]);
 
   // Convert a pointer event to percentage coordinates against the canvas.
   function eventToPercent(e: React.PointerEvent<HTMLCanvasElement>): Point {
@@ -209,7 +288,7 @@ export function CanvasFreehandLayer() {
 
     ctx.beginPath();
     ctx.strokeStyle = activeColor;
-    ctx.lineWidth = STROKE_WIDTH;
+    ctx.lineWidth = strokeWidth;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.moveTo((from.x / 100) * rect.width, (from.y / 100) * rect.height);
@@ -263,13 +342,14 @@ export function CanvasFreehandLayer() {
     if (!form.visible) return;
     const annotation = createFreehandAnnotation({
       points: form.points,
-      strokeWidth: STROKE_WIDTH,
+      strokeWidth,
       timestamp: currentTime,
       author,
       comment,
       color: activeColor,
     });
     dispatch({ type: 'ADD_ANNOTATION', payload: annotation });
+    undoStackRef.current.push(annotation.id); // track for Ctrl+Z undo
     setForm({ visible: false });
   }
 
@@ -289,6 +369,49 @@ export function CanvasFreehandLayer() {
         onPointerCancel={handlePointerCancel}
         aria-label="Canvas freehand layer"
       />
+
+      {activeTool === 'freehand' && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            zIndex: 5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 8px',
+            background: 'rgba(15, 23, 42, 0.85)',
+            borderRadius: 8,
+          }}
+          role="group"
+          aria-label="Freehand stroke width"
+        >
+          {STROKE_WIDTH_PRESETS.map((w) => (
+            <button
+              key={w}
+              type="button"
+              onClick={() => setStrokeWidth(w)}
+              title={`Stroke width ${w}`}
+              aria-label={`Stroke width ${w}`}
+              aria-pressed={strokeWidth === w}
+              style={{
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 6,
+                cursor: 'pointer',
+                background: '#1e293b',
+                border: strokeWidth === w ? '2px solid #fff' : '1px solid #475569',
+              }}
+            >
+              <span style={{ display: 'block', width: 16, height: w, borderRadius: w, background: '#fff' }} />
+            </button>
+          ))}
+        </div>
+      )}
 
       {form.visible && (
         <FreehandCommentForm
