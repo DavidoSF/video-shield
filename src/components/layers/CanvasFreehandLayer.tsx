@@ -11,6 +11,37 @@ type PendingForm =
 // Default freehand stroke thickness (device-independent pixels).
 const STROKE_WIDTH = 4;
 
+// Minimum spacing between stored points (in percentage units). Pointer events
+// fire far more often than we need; thinning keeps the JSON small without
+// visibly changing the stroke.
+const MIN_POINT_DISTANCE = 0.4;
+
+// Trace a smooth path through the points using quadratic curves between segment
+// midpoints (Catmull-Rom-style smoothing). Caller sets stroke style and calls
+// stroke(). Points are in percentages; rect converts them to canvas pixels.
+function buildSmoothPath(ctx: CanvasRenderingContext2D, points: Point[], rect: DOMRect) {
+  const px = (p: Point) => ((p.x / 100) * rect.width);
+  const py = (p: Point) => ((p.y / 100) * rect.height);
+
+  ctx.beginPath();
+  ctx.moveTo(px(points[0]), py(points[0]));
+
+  if (points.length === 2) {
+    ctx.lineTo(px(points[1]), py(points[1]));
+    return;
+  }
+
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const midX = (px(points[i]) + px(points[i + 1])) / 2;
+    const midY = (py(points[i]) + py(points[i + 1])) / 2;
+    ctx.quadraticCurveTo(px(points[i]), py(points[i]), midX, midY);
+  }
+
+  // Final leg to the last captured point.
+  const last = points[points.length - 1];
+  ctx.lineTo(px(last), py(last));
+}
+
 // Same percentage-coordinate helper Dev B uses in the SVG layer, so freehand
 // strokes stay aligned with the video and with SVG annotations on resize.
 function toPercent(clientX: number, clientY: number, rect: DOMRect): Point {
@@ -77,27 +108,18 @@ export function CanvasFreehandLayer() {
         .forEach((annotation) => {
           if (annotation.type !== 'freehand' || annotation.points.length < 2) return;
 
-          const trace = () => {
-            ctx.beginPath();
-            const [firstPoint, ...rest] = annotation.points;
-            ctx.moveTo((firstPoint.x / 100) * rect.width, (firstPoint.y / 100) * rect.height);
-            rest.forEach((point) => {
-              ctx.lineTo((point.x / 100) * rect.width, (point.y / 100) * rect.height);
-            });
-          };
-
           ctx.lineCap = 'round';
           ctx.lineJoin = 'round';
 
           // Halo behind the selected stroke so it reads as "selected".
           if (annotation.id === selectedAnnotationId) {
-            trace();
+            buildSmoothPath(ctx, annotation.points, rect);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
             ctx.lineWidth = annotation.strokeWidth + 6;
             ctx.stroke();
           }
 
-          trace();
+          buildSmoothPath(ctx, annotation.points, rect);
           ctx.strokeStyle = annotation.color;
           ctx.lineWidth = annotation.strokeWidth;
           ctx.stroke();
@@ -105,14 +127,11 @@ export function CanvasFreehandLayer() {
 
       // Keep the just-finished stroke visible while its comment form is open.
       if (form.visible && form.points.length >= 2) {
-        ctx.beginPath();
-        ctx.strokeStyle = activeColor;
-        ctx.lineWidth = STROKE_WIDTH;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        const [first, ...rest] = form.points;
-        ctx.moveTo((first.x / 100) * rect.width, (first.y / 100) * rect.height);
-        rest.forEach((p) => ctx.lineTo((p.x / 100) * rect.width, (p.y / 100) * rect.height));
+        buildSmoothPath(ctx, form.points, rect);
+        ctx.strokeStyle = activeColor;
+        ctx.lineWidth = STROKE_WIDTH;
         ctx.stroke();
       }
     };
@@ -212,6 +231,8 @@ export function CanvasFreehandLayer() {
     if (!stroke) return;
     const prev = stroke[stroke.length - 1];
     const next = eventToPercent(e);
+    // Skip points too close to the last one to keep the stored stroke compact.
+    if (Math.hypot(next.x - prev.x, next.y - prev.y) < MIN_POINT_DISTANCE) return;
     stroke.push(next);
     drawSegment(prev, next);
   }
