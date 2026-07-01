@@ -58,6 +58,15 @@ export function createDemoAnnotation(options: CreateAnnotationOptions): Annotati
         end: { x: 55, y: 45 },
       };
 
+    case 'line':
+      return {
+        ...base,
+        type: 'line',
+        start: { x: 20, y: 30 },
+        end: { x: 55, y: 45 },
+        comment: options.comment?.trim() ?? '',
+      };
+
     case 'rectangle':
       return {
         ...base,

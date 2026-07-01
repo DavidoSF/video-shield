@@ -1,5 +1,9 @@
 import type { Annotation, ToolType } from "../types/annotation";
 
+type ActionMeta = {
+  remote?: boolean;
+};
+
 export type ReviewState = {
   videoId: string;
   videoName: string;
@@ -11,19 +15,21 @@ export type ReviewState = {
   annotations: Annotation[];
   author: string;
   connectionStatus: "offline" | "connecting" | "connected";
+  connectedUsers: number;
 };
 
 export type ReviewAction =
-  | { type: "SET_CURRENT_TIME"; payload: number }
-  | { type: "SET_DURATION"; payload: number }
-  | { type: "SET_ACTIVE_TOOL"; payload: ToolType }
-  | { type: "SET_ACTIVE_COLOR"; payload: string }
-  | { type: "SET_SELECTED_ANNOTATION"; payload: string | null }
-  | { type: "ADD_ANNOTATION"; payload: Annotation }
-  | { type: "UPSERT_REMOTE_ANNOTATION"; payload: Annotation }
+  | { type: "SET_CURRENT_TIME"; payload: number; meta?: ActionMeta }
+  | { type: "SET_DURATION"; payload: number; meta?: ActionMeta }
+  | { type: "SET_ACTIVE_TOOL"; payload: ToolType; meta?: ActionMeta }
+  | { type: "SET_ACTIVE_COLOR"; payload: string; meta?: ActionMeta }
+  | { type: "SET_SELECTED_ANNOTATION"; payload: string | null; meta?: ActionMeta }
+  | { type: "ADD_ANNOTATION"; payload: Annotation; meta?: ActionMeta }
+  | { type: "UPSERT_REMOTE_ANNOTATION"; payload: Annotation; meta?: ActionMeta }
   | {
       type: "UPDATE_ANNOTATION_COMMENT";
       payload: { id: string; comment: string };
+      meta?: ActionMeta;
     }
   | {
       type: "UPDATE_COMMENT";
@@ -31,10 +37,13 @@ export type ReviewAction =
         id: string;
         comment: string;
       };
+      meta?: ActionMeta;
     }
-  | { type: "MOVE_ANNOTATION"; payload: Annotation }
-  | { type: "DELETE_ANNOTATION"; payload: string }
-  | { type: "SET_CONNECTION_STATUS"; payload: ReviewState["connectionStatus"] };
+  | { type: "MOVE_ANNOTATION"; payload: Annotation; meta?: ActionMeta }
+  | { type: "DELETE_ANNOTATION"; payload: string; meta?: ActionMeta }
+  | { type: "SET_CONNECTION_STATUS"; payload: ReviewState["connectionStatus"]; meta?: ActionMeta }
+  | { type: "SET_CONNECTED_USERS"; payload: number; meta?: ActionMeta }
+  | { type: "SET_AUTHOR"; payload: string; meta?: ActionMeta };
 
 export const initialReviewState: ReviewState = {
   videoId: "demo-review-video",
@@ -45,8 +54,9 @@ export const initialReviewState: ReviewState = {
   activeColor: "#f97316",
   selectedAnnotationId: null,
   annotations: [],
-  author: "Developer B",
+  author: "Reviewer",
   connectionStatus: "offline",
+  connectedUsers: 0,
 };
 
 export function reviewReducer(
@@ -140,6 +150,12 @@ export function reviewReducer(
 
     case "SET_CONNECTION_STATUS":
       return { ...state, connectionStatus: action.payload };
+
+    case "SET_CONNECTED_USERS":
+      return { ...state, connectedUsers: action.payload };
+
+    case "SET_AUTHOR":
+      return { ...state, author: action.payload };
 
     default:
       return state;
