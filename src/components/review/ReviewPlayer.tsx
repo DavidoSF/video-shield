@@ -3,6 +3,7 @@ import { AnnotationToolbar } from "../toolbar/AnnotationToolbar";
 import { CanvasFreehandLayer } from "../layers/CanvasFreehandLayer";
 import { CommentsPanel } from "../comments/CommentsPanel";
 import { ConnectionStatus } from "../realtime/ConnectionStatus";
+import { RealtimeBridge } from "../realtime/RealtimeBridge";
 import { SvgAnnotationLayer } from "../layers/SvgAnnotationLayer";
 import { VideoPlayer } from "../video/VideoPlayer";
 
@@ -10,7 +11,9 @@ export function ReviewPlayer() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   return (
-    <main className="app-shell">
+    <>
+      <RealtimeBridge />
+      <main className="app-shell">
       <header className="app-header">
         <div>
           <p className="eyebrow">Subject A</p>
@@ -39,6 +42,7 @@ export function ReviewPlayer() {
           </div>
         </div>
       </section>
-    </main>
+      </main>
+    </>
   );
 }

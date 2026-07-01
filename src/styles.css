@@ -803,3 +803,8 @@ h1 {
     grid-template-columns: repeat(3, minmax(64px, 1fr));
   }
 }
+
+.status-users {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
