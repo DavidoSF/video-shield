@@ -1,4 +1,4 @@
-import type { Annotation, ToolType } from '../types/annotation';
+import type { Annotation, ToolType } from "../types/annotation";
 
 export type ReviewState = {
   videoId: string;
@@ -10,80 +10,115 @@ export type ReviewState = {
   selectedAnnotationId: string | null;
   annotations: Annotation[];
   author: string;
-  connectionStatus: 'offline' | 'connecting' | 'connected';
+  connectionStatus: "offline" | "connecting" | "connected";
 };
 
 export type ReviewAction =
-  | { type: 'SET_CURRENT_TIME'; payload: number }
-  | { type: 'SET_DURATION'; payload: number }
-  | { type: 'SET_ACTIVE_TOOL'; payload: ToolType }
-  | { type: 'SET_ACTIVE_COLOR'; payload: string }
-  | { type: 'SET_SELECTED_ANNOTATION'; payload: string | null }
-  | { type: 'ADD_ANNOTATION'; payload: Annotation }
-  | { type: 'UPSERT_REMOTE_ANNOTATION'; payload: Annotation }
-  | { type: 'UPDATE_ANNOTATION_COMMENT'; payload: { id: string; comment: string } }
-  | { type: 'MOVE_ANNOTATION'; payload: Annotation }
-  | { type: 'DELETE_ANNOTATION'; payload: string }
-  | { type: 'SET_CONNECTION_STATUS'; payload: ReviewState['connectionStatus'] };
+  | { type: "SET_CURRENT_TIME"; payload: number }
+  | { type: "SET_DURATION"; payload: number }
+  | { type: "SET_ACTIVE_TOOL"; payload: ToolType }
+  | { type: "SET_ACTIVE_COLOR"; payload: string }
+  | { type: "SET_SELECTED_ANNOTATION"; payload: string | null }
+  | { type: "ADD_ANNOTATION"; payload: Annotation }
+  | { type: "UPSERT_REMOTE_ANNOTATION"; payload: Annotation }
+  | {
+      type: "UPDATE_ANNOTATION_COMMENT";
+      payload: { id: string; comment: string };
+    }
+  | {
+      type: "UPDATE_COMMENT";
+      payload: {
+        id: string;
+        comment: string;
+      };
+    }
+  | { type: "MOVE_ANNOTATION"; payload: Annotation }
+  | { type: "DELETE_ANNOTATION"; payload: string }
+  | { type: "SET_CONNECTION_STATUS"; payload: ReviewState["connectionStatus"] };
 
 export const initialReviewState: ReviewState = {
-  videoId: 'demo-review-video',
-  videoName: 'demo.mp4',
+  videoId: "demo-review-video",
+  videoName: "demo.mp4",
   currentTime: 0,
   duration: 0,
-  activeTool: 'select',
-  activeColor: '#f97316',
+  activeTool: "select",
+  activeColor: "#f97316",
   selectedAnnotationId: null,
   annotations: [],
-  author: 'Developer B',
-  connectionStatus: 'offline',
+  author: "Developer B",
+  connectionStatus: "offline",
 };
 
-export function reviewReducer(state: ReviewState, action: ReviewAction): ReviewState {
+export function reviewReducer(
+  state: ReviewState,
+  action: ReviewAction,
+): ReviewState {
   switch (action.type) {
-    case 'SET_CURRENT_TIME':
+    case "SET_CURRENT_TIME":
       return { ...state, currentTime: action.payload };
 
-    case 'SET_DURATION':
+    case "SET_DURATION":
       return { ...state, duration: action.payload };
 
-    case 'SET_ACTIVE_TOOL':
+    case "SET_ACTIVE_TOOL":
       return { ...state, activeTool: action.payload };
 
-    case 'SET_ACTIVE_COLOR':
+    case "SET_ACTIVE_COLOR":
       return { ...state, activeColor: action.payload };
 
-    case 'SET_SELECTED_ANNOTATION':
+    case "SET_SELECTED_ANNOTATION":
       return { ...state, selectedAnnotationId: action.payload };
 
-    case 'ADD_ANNOTATION':
+    case "ADD_ANNOTATION":
       return {
         ...state,
         annotations: [...state.annotations, action.payload],
         selectedAnnotationId: action.payload.id,
       };
 
-    case 'UPSERT_REMOTE_ANNOTATION': {
-      const exists = state.annotations.some((item) => item.id === action.payload.id);
+    case "UPSERT_REMOTE_ANNOTATION": {
+      const exists = state.annotations.some(
+        (item) => item.id === action.payload.id,
+      );
       return {
         ...state,
         annotations: exists
-          ? state.annotations.map((item) => (item.id === action.payload.id ? action.payload : item))
+          ? state.annotations.map((item) =>
+              item.id === action.payload.id ? action.payload : item,
+            )
           : [...state.annotations, action.payload],
       };
     }
 
-    case 'UPDATE_ANNOTATION_COMMENT':
+    case "UPDATE_ANNOTATION_COMMENT":
       return {
         ...state,
         annotations: state.annotations.map((item) =>
           item.id === action.payload.id
-            ? { ...item, comment: action.payload.comment, updatedAt: new Date().toISOString() }
+            ? {
+                ...item,
+                comment: action.payload.comment,
+                updatedAt: new Date().toISOString(),
+              }
             : item,
         ),
       };
 
-    case 'MOVE_ANNOTATION':
+    case "UPDATE_COMMENT":
+      return {
+        ...state,
+        annotations: state.annotations.map((annotation) =>
+          annotation.id === action.payload.id
+            ? {
+                ...annotation,
+                comment: action.payload.comment,
+                updatedAt: new Date().toISOString(),
+              }
+            : annotation,
+        ),
+      };
+
+    case "MOVE_ANNOTATION":
       return {
         ...state,
         annotations: state.annotations.map((item) =>
@@ -91,15 +126,19 @@ export function reviewReducer(state: ReviewState, action: ReviewAction): ReviewS
         ),
       };
 
-    case 'DELETE_ANNOTATION':
+    case "DELETE_ANNOTATION":
       return {
         ...state,
-        annotations: state.annotations.filter((item) => item.id !== action.payload),
+        annotations: state.annotations.filter(
+          (item) => item.id !== action.payload,
+        ),
         selectedAnnotationId:
-          state.selectedAnnotationId === action.payload ? null : state.selectedAnnotationId,
+          state.selectedAnnotationId === action.payload
+            ? null
+            : state.selectedAnnotationId,
       };
 
-    case 'SET_CONNECTION_STATUS':
+    case "SET_CONNECTION_STATUS":
       return { ...state, connectionStatus: action.payload };
 
     default:

@@ -1,4 +1,4 @@
-export type ToolType = 'select' | 'arrow' | 'rectangle' | 'circle' | 'text' | 'freehand' | 'delete';
+export type ToolType = 'select' | 'arrow' | 'line' | 'rectangle' | 'circle' | 'text' | 'freehand' | 'delete';
 
 export type AnnotationType = Exclude<ToolType, 'select' | 'delete'>;
 
@@ -12,6 +12,19 @@ export type BaseAnnotation = {
   type: AnnotationType;
   timestamp: number; // seconds in the video
   comment?: string;
+  author?: string;
+  color: string;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type LineAnnotation = {
+  id: string;
+  type: "line";
+  start: Point;
+  end: Point;
+  timestamp: number;
+  comment: string;
   author?: string;
   color: string;
   createdAt: string;
@@ -50,6 +63,7 @@ export type FreehandAnnotation = BaseAnnotation & {
 };
 
 export type Annotation =
+  | LineAnnotation
   | ArrowAnnotation
   | RectangleAnnotation
   | CircleAnnotation

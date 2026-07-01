@@ -39,7 +39,7 @@ export function createFreehandAnnotation(options: CreateFreehandOptions): Freeha
     points: options.points,
     strokeWidth: options.strokeWidth,
     timestamp: options.timestamp,
-    comment: options.comment?.trim() || undefined,
+    comment: options.comment?.trim() ?? '',
     author: options.author,
     color: options.color ?? defaultColor,
     createdAt: new Date().toISOString(),
