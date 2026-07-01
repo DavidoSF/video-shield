@@ -40,7 +40,7 @@ npm run dev
 Open:
 
 ```txt
-http://localhost:5173?user=Mohamad
+http://localhost:5173?user=Reviewer1
 ```
 
 For a second reviewer, open another tab/window:
