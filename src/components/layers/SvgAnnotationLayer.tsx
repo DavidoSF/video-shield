@@ -157,7 +157,11 @@ export function SvgAnnotationLayer() {
   const layerEnabled =
     (isActiveSvgTool || activeTool === "delete") && !formState.visible;
 
-  const svgAnnotations = annotations.filter((a) => a.type !== "freehand");
+  const svgAnnotations = annotations.filter(
+    (a) =>
+      a.type !== "freehand" &&
+      Math.floor(a.timestamp) === Math.floor(currentTime),
+  );
 
   // ─── coordinate helpers ───────────────────────────────────────────────────
 
