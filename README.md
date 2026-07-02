@@ -1,48 +1,98 @@
-# Augmented Review Player — Developer A Starter
+# Augmented Review Player — Video Shield
 
-This is the Developer A base for the Augmented Review Player project.
+ESTIAM Hackathon — Subject A: Augmented Review Player.
 
-Developer A owns:
+This React app lets reviewers annotate a video with SVG shapes, Canvas freehand drawings, timestamped comments, real-time WebSocket synchronization, and JSON export.
 
-- React/Vite project setup
-- Main app layout
-- Video player core
-- Current timestamp tracking
-- Shared annotation state
-- Active tool state
-- Selected annotation state
-- Integration shell for SVG, Canvas, comments, WebSocket, and JSON export
+## Implemented features
+
+- React/Vite video review player
+- Current video timestamp tracking
+- SVG annotations: arrow, line, rectangle, circle, text label
+- Canvas freehand drawing with stored point data
+- Annotation comments with edit/delete
+- Jump from comment to video timestamp
+- JSON export with video metadata and annotations
+- WebSocket collaboration server for multi-window / multi-user sync
+- Connection status and connected-user count
 
 ## Requirements
 
 Use Node.js 20.19+ or 22.12+.
 
-## Run
+## Run locally
+
+Open two terminals.
+
+Terminal 1 — WebSocket server:
 
 ```bash
 npm install
+npm run ws
+```
+
+Terminal 2 — React app:
+
+```bash
 npm run dev
 ```
 
 Open:
 
 ```txt
-http://localhost:5173
+http://localhost:5173?user=Reviewer1
 ```
+
+For a second reviewer, open another tab/window:
+
+```txt
+http://localhost:5173?user=Reviewer2
+```
+
+Both windows connect to the same review room. Create an annotation in one window and it should appear live in the other window.
 
 ## Demo video
 
-The app expects this file:
+The app currently loads:
 
 ```txt
-public/videos/demo.mp4
+public/videos/flower.mp4
 ```
 
-A short generated demo video is already included. You can replace it with your team's own video later.
+You can change the video source in `src/components/review/ReviewPlayer.tsx`.
+
+## WebSocket protocol
+
+The local server runs on:
+
+```txt
+ws://localhost:8081
+```
+
+Supported events:
+
+- `annotation:upsert` — create/update an annotation or comment
+- `annotation:delete` — delete an annotation everywhere
+- `presence` — update connected-user count
+
+## Dev E demo checklist
+
+1. Start `npm run ws`.
+2. Start `npm run dev`.
+3. Open two browser windows with different `?user=` values.
+4. Confirm the header says `WebSocket: connected` and shows 2 users.
+5. Draw an arrow in window 1.
+6. Confirm it appears in window 2.
+7. Edit a comment in window 2.
+8. Confirm the update appears in window 1.
+9. Delete an annotation in one window.
+10. Confirm it disappears in the other window.
+11. Export JSON and open the file to prove the structured deliverable.
 
 ## Team integration notes
 
-- Developer B should replace `SvgAnnotationLayer.tsx` demo click logic with real pointer drawing for arrows, rectangles, circles, and text.
-- Developer C should replace `CanvasFreehandLayer.tsx` demo click logic with real pointer-based freehand drawing.
-- Developer D can keep using `annotations` from `ReviewContext` for comments and export.
-- Developer E can dispatch `UPSERT_REMOTE_ANNOTATION`, `DELETE_ANNOTATION`, and `SET_CONNECTION_STATUS` from WebSocket events.
+- Developer A owns the app shell, video player, global state, and integration.
+- Developer B owns SVG annotations.
+- Developer C owns Canvas freehand drawing.
+- Developer D owns comments, timestamps, and JSON export.
+- Developer E owns WebSocket real-time collaboration and final testing.

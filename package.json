@@ -9,12 +9,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "ws": "node server/websocket-server.cjs",
+    "dev:host": "vite --host 0.0.0.0"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/react": "latest",

@@ -39,7 +39,7 @@ export function createFreehandAnnotation(options: CreateFreehandOptions): Freeha
     points: options.points,
     strokeWidth: options.strokeWidth,
     timestamp: options.timestamp,
-    comment: options.comment?.trim() || undefined,
+    comment: options.comment?.trim() ?? '',
     author: options.author,
     color: options.color ?? defaultColor,
     createdAt: new Date().toISOString(),
@@ -56,6 +56,15 @@ export function createDemoAnnotation(options: CreateAnnotationOptions): Annotati
         type: 'arrow',
         start: { x: 20, y: 30 },
         end: { x: 55, y: 45 },
+      };
+
+    case 'line':
+      return {
+        ...base,
+        type: 'line',
+        start: { x: 20, y: 30 },
+        end: { x: 55, y: 45 },
+        comment: options.comment?.trim() ?? '',
       };
 
     case 'rectangle':
