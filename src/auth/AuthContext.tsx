@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import { login as loginRequest, logout as logoutRequest } from './authClient';
+import { login as loginRequest, logout as logoutRequest, hasValidSession, getSessionEmail } from './authClient';
 import { resetStreamixToken } from '../streamix/streamixClient';
 
 interface AuthContextValue {
@@ -14,8 +14,8 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [email, setEmail] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => hasValidSession());
+  const [email, setEmail] = useState<string | null>(() => getSessionEmail());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 

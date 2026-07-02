@@ -32,7 +32,7 @@ export function LoginPage() {
       <div className="login-glow" aria-hidden="true" />
       <div className="login-card">
         <p className="login-eyebrow">Accès sécurisé</p>
-        <h1 className="login-title">Video&nbsp;Shield</h1>
+        <h1 className="login-title">VideoShield</h1>
         <p className="login-subtitle">
           Connectez-vous pour accéder à l’espace de review.
         </p>

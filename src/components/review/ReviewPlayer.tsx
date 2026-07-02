@@ -6,6 +6,7 @@ import { ConnectionStatus } from "../realtime/ConnectionStatus";
 import { RealtimeBridge } from "../realtime/RealtimeBridge";
 import { SvgAnnotationLayer } from "../layers/SvgAnnotationLayer";
 import { VideoPlayer } from "../video/VideoPlayer";
+import { TimelineMarkers } from "../timeline/TimelineMarkers";
 import { useAuth } from "../../auth/AuthContext";
 
 export function ReviewPlayer() {
@@ -17,9 +18,17 @@ export function ReviewPlayer() {
       <RealtimeBridge />
       <main className="app-shell">
       <header className="app-header">
-        <div>
-          <p className="eyebrow">Subject A</p>
-          <h1>Augmented Review Player</h1>
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5l8-3z" />
+              <path d="M9 12l2 2 4-4" />
+            </svg>
+          </span>
+          <div className="brand-text">
+            <h1>VideoShield</h1>
+            <p className="brand-tagline">Secure collaborative video review</p>
+          </div>
         </div>
 
         <div className="app-header-right">
@@ -47,6 +56,8 @@ export function ReviewPlayer() {
                 <SvgAnnotationLayer />
                 <CanvasFreehandLayer />
               </div>
+
+              <TimelineMarkers videoRef={videoRef} />
             </div>
 
             <div className="side-panel">
