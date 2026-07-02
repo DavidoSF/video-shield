@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
+    "hls.js": "^1.6.16",
     "react": "latest",
     "react-dom": "latest",
     "ws": "^8.18.3"

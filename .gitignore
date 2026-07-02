@@ -3,3 +3,10 @@ dist
 .env
 .env.local
 .DS_Store
+
+# Local Streamix secrets and generated certificates
+services/secure-streaming/backend/key-server/.env
+services/secure-streaming/certs/*.pem
+services/secure-streaming/certs/*.key
+services/secure-streaming/certs/*.crt
+services/secure-streaming/backend/key-server/node_modules/
