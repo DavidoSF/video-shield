@@ -102,6 +102,38 @@ h1 {
   text-transform: uppercase;
 }
 
+.app-header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.account-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.account-email {
+  color: #cbd5e1;
+  font-size: 0.82rem;
+}
+
+.logout-button {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.logout-button:hover {
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .connection-status {
   display: inline-flex;
   align-items: center;

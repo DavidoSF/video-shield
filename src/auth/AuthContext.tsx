@@ -1,31 +1,50 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
+import { login as loginRequest, logout as logoutRequest } from './authClient';
+import { resetStreamixToken } from '../streamix/streamixClient';
 
 interface AuthContextValue {
   isAuthenticated: boolean;
-  login: (username: string, password: string) => boolean;
+  email: string | null;
+  submitting: boolean;
+  error: string;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
-
-const VALID_USERNAME = 'admin';
-const VALID_PASSWORD = 'password';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-  const login = (username: string, password: string) => {
-    if (username === VALID_USERNAME && password === VALID_PASSWORD) {
+  const login = async (loginEmail: string, password: string) => {
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const loggedInEmail = await loginRequest(loginEmail, password);
+      setEmail(loggedInEmail);
       setIsAuthenticated(true);
-      return true;
+    } catch (err) {
+      setIsAuthenticated(false);
+      setError(err instanceof Error ? err.message : 'login_failed');
+      throw err;
+    } finally {
+      setSubmitting(false);
     }
-    return false;
   };
 
-  const logout = () => setIsAuthenticated(false);
+  const logout = () => {
+    logoutRequest();
+    resetStreamixToken();
+    setIsAuthenticated(false);
+    setEmail(null);
+  };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, email, submitting, error, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

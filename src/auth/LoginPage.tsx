@@ -1,21 +1,25 @@
 import { useState } from 'react';
 import { useAuth } from './AuthContext';
 
+const ERROR_MESSAGES: Record<string, string> = {
+  invalid_credentials: 'Identifiants invalides. Réessayez.',
+  rate_limited: 'Trop de tentatives. Réessayez dans un instant.',
+  login_failed: 'Connexion impossible. Réessayez.',
+};
+
 export function LoginPage() {
-  const { login } = useAuth();
-  const [username, setUsername] = useState('');
+  const { login, submitting } = useAuth();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    setSubmitting(true);
-    const ok = login(username.trim(), password);
-    if (!ok) {
-      setError('Identifiants invalides. Réessayez.');
-      setSubmitting(false);
-    } else {
-      setError('');
+  const handleSubmit = async () => {
+    setError('');
+    try {
+      await login(email.trim(), password);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'login_failed';
+      setError(ERROR_MESSAGES[reason] ?? ERROR_MESSAGES.login_failed);
     }
   };
 
@@ -34,15 +38,15 @@ export function LoginPage() {
         </p>
 
         <div className="login-field">
-          <label htmlFor="login-username">Nom d’utilisateur</label>
+          <label htmlFor="login-email">Email</label>
           <input
-            id="login-username"
+            id="login-email"
             className="login-input"
-            type="text"
+            type="email"
             autoComplete="username"
-            placeholder="admin"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            placeholder="demo@streamix.local"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             onKeyDown={handleKeyDown}
             autoFocus
           />
@@ -67,12 +71,12 @@ export function LoginPage() {
         <button
           className="login-button"
           onClick={handleSubmit}
-          disabled={submitting || !username || !password}
+          disabled={submitting || !email || !password}
         >
-          Se connecter
+          {submitting ? 'Connexion...' : 'Se connecter'}
         </button>
 
-        <p className="login-hint">Démo : admin / password</p>
+        <p className="login-hint">Démo : demo@streamix.local / StreamixDemo123!</p>
       </div>
     </div>
   );
