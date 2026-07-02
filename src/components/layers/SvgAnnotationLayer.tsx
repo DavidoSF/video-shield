@@ -28,7 +28,7 @@ type PartialData =
 
 type FormState =
   | { visible: false }
-  | { visible: true; partial: PartialData; screenX: number; screenY: number };
+  | { visible: true; partial: PartialData };
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -172,30 +172,8 @@ export function SvgAnnotationLayer() {
 
   // ─── show the inline input form ───────────────────────────────────────────
 
-  function openForm(partial: PartialData, clientX: number, clientY: number) {
-    const formWidth = 260;
-    const formHeight = 300;
-    const gap = 5;
-
-    let x = clientX + gap;
-    let y = clientY - formHeight - gap;
-
-    // If the form would go off the right side, place it to the left of the cursor.
-    if (x + formWidth > window.innerWidth) {
-      x = clientX - formWidth - gap;
-    }
-
-    // If the form would go too low, place it above the cursor.
-    if (y + formHeight > window.innerHeight) {
-      y = clientY - formHeight - gap;
-    }
-
-    setFormState({
-      visible: true,
-      partial,
-      screenX: Math.max(gap, x),
-      screenY: Math.max(gap, y),
-    });
+  function openForm(partial: PartialData) {
+    setFormState({ visible: true, partial });
   }
 
   // ─── annotation pointer-down: delete click or start drag-to-move ─────────
@@ -249,32 +227,20 @@ export function SvgAnnotationLayer() {
     setDrawState({ active: false });
 
     if (activeTool === "arrow" || activeTool === "line") {
-      openForm(
-        { type: activeTool, start: drawState.start, end },
-        e.clientX,
-        e.clientY,
-      );
+      openForm({ type: activeTool, start: drawState.start, end });
     } else if (activeTool === "rectangle") {
       const x = Math.min(drawState.start.x, end.x);
       const y = Math.min(drawState.start.y, end.y);
       const w = Math.abs(end.x - drawState.start.x);
       const h = Math.abs(end.y - drawState.start.y);
       if (w < 0.5 || h < 0.5) return; // ignore accidental micro-clicks
-      openForm(
-        { type: "rectangle", origin: { x, y }, width: w, height: h },
-        e.clientX,
-        e.clientY,
-      );
+      openForm({ type: "rectangle", origin: { x, y }, width: w, height: h });
     } else if (activeTool === "circle") {
       const dx = end.x - drawState.start.x;
       const dy = end.y - drawState.start.y;
       const radius = Math.sqrt(dx * dx + dy * dy);
       if (radius < 0.5) return;
-      openForm(
-        { type: "circle", center: drawState.start, radius },
-        e.clientX,
-        e.clientY,
-      );
+      openForm({ type: "circle", center: drawState.start, radius });
     }
   }
 
@@ -285,7 +251,7 @@ export function SvgAnnotationLayer() {
 
     if (activeTool === "text") {
       const pt = svgPoint(e);
-      openForm({ type: "text", position: pt }, e.clientX, e.clientY);
+      openForm({ type: "text", position: pt });
       return;
     }
 
@@ -537,8 +503,6 @@ export function SvgAnnotationLayer() {
       {formState.visible && (
         <AnnotationInputForm
           annotationType={formState.partial.type}
-          screenX={formState.screenX}
-          screenY={formState.screenY}
           onSubmit={handleFormSubmit}
           onCancel={handleFormCancel}
         />
@@ -647,16 +611,12 @@ function renderCirclePreview(start: Point, current: Point, color: string) {
 
 type AnnotationInputFormProps = {
   annotationType: PartialData["type"];
-  screenX: number;
-  screenY: number;
   onSubmit: (comment: string, textContent?: string) => void;
   onCancel: () => void;
 };
 
 function AnnotationInputForm({
   annotationType,
-  screenX,
-  screenY,
   onSubmit,
   onCancel,
 }: AnnotationInputFormProps) {
@@ -675,7 +635,6 @@ function AnnotationInputForm({
   return (
     <form
       className="annotation-form"
-      style={{ left: screenX, top: screenY }}
       onSubmit={handleSubmit}
       onKeyDown={handleKeyDown}
     >

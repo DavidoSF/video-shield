@@ -22,7 +22,7 @@ function translateFreehand(
 // A finished stroke awaiting its optional comment before being committed.
 type PendingForm =
   | { visible: false }
-  | { visible: true; points: Point[]; screenX: number; screenY: number };
+  | { visible: true; points: Point[] };
 
 // Default freehand stroke thickness (device-independent pixels).
 const STROKE_WIDTH = 4;
@@ -454,13 +454,7 @@ export function CanvasFreehandLayer() {
     // Ignore taps that produced no real line.
     if (stroke.length < 2) return;
 
-    // Open the comment form near the release point (kept inside the viewport).
-    setForm({
-      visible: true,
-      points: stroke,
-      screenX: Math.min(e.clientX + 10, window.innerWidth - 260),
-      screenY: Math.min(e.clientY + 10, window.innerHeight - 150),
-    });
+    setForm({ visible: true, points: stroke });
   }
 
   function handlePointerCancel() {
@@ -578,8 +572,6 @@ export function CanvasFreehandLayer() {
 
       {form.visible && (
         <FreehandCommentForm
-          screenX={form.screenX}
-          screenY={form.screenY}
           onSubmit={handleFormSubmit}
           onCancel={handleFormCancel}
         />
@@ -591,15 +583,11 @@ export function CanvasFreehandLayer() {
 // Inline comment form for a freehand stroke — mirrors Dev B's SVG input form
 // so the two layers feel identical. Rendered as a fixed overlay.
 type FreehandCommentFormProps = {
-  screenX: number;
-  screenY: number;
   onSubmit: (comment: string) => void;
   onCancel: () => void;
 };
 
 function FreehandCommentForm({
-  screenX,
-  screenY,
   onSubmit,
   onCancel,
 }: FreehandCommentFormProps) {
@@ -617,7 +605,6 @@ function FreehandCommentForm({
   return (
     <form
       className="annotation-form"
-      style={{ left: screenX, top: screenY }}
       onSubmit={handleSubmit}
       onKeyDown={handleKeyDown}
     >
